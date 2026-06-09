@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use chrono::Utc;
+use chrono::DateTime;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Deserialize)]
 pub struct Vendor {
     pub id: Uuid,
     pub slug: String,
@@ -9,11 +12,12 @@ pub struct Vendor {
     pub status: Status,
     pub email: String,
     pub metadata: Option<HashMap<String, String>>,
-    pub created_at: Utc,
-    pub updated_at: Utc,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub items: Vec<Item>,
 }
 
+#[derive(Deserialize)]
 pub struct Item {
     pub id: Uuid,
     pub vendor_id: Uuid, // check weather i can estabilsh connection between vendor and item in database
@@ -32,10 +36,11 @@ pub struct Item {
     pub attributes: Option<HashMap<String, String>>,
     pub image_urls: Option<Vec<String>>,
     pub has_variants: bool,
-    pub created_at: Utc,
-    pub updated_at: Utc,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Deserialize)]
 pub struct ItemVariant {
     pub id: Uuid,
     pub item_id: Uuid,
@@ -48,8 +53,8 @@ pub struct ItemVariant {
     pub attributes: HashMap<String, String>,
     pub stock: u32,
     pub image_urls: Option<Vec<String>>,
-    pub created_at: Utc,
-    pub updated_at: Utc,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 pub struct Catgeory {
     pub id: Uuid,
@@ -105,21 +110,30 @@ pub struct ApiKey {
     pub created_at: Utc,
 }
 
+#[derive(Serialize)]
+pub struct VendorHandlerResponse {
+    
+}
+
+#[derive(Deserialize)]
 pub enum Role {
     Admin,
     Operator,
     ReadOnly,
 }
 
+#[derive(Deserialize)]
 pub enum ApiStatus {
     Active,
     Revoked,
 }
 
+#[derive(Deserialize)]
 pub enum AdjustmenType {
     Default,
 }
 
+#[derive(Deserialize)]
 pub enum Status {
     Active,
     Suspened,
