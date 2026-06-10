@@ -1,4 +1,3 @@
-use jsonwebtoken::decode;
 use jsonwebtoken::encode;
 use jsonwebtoken::errors::Error;
 use serde::Deserialize;

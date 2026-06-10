@@ -72,9 +72,6 @@ async fn main() {
     POST /vendor/{id}/item/{id}/variant add-variants-for-item , if vriant!=0 , has_variant=1
 
 
-
-
-
     */
 
     // run our app with hyper, listening globally on port 3000

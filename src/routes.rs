@@ -1,6 +1,5 @@
 use crate::types::Vendor;
 use crate::types::VendorHandlerResponse;
-use crate::middleware;
 use axum::Json;
 use chrono::DateTime;
 use chrono::Utc;
@@ -20,6 +19,8 @@ pub struct LoginResponse {
 }
 pub async fn login_handler(_payload: Json<LoginPayload>) -> Json<LoginResponse> {
     // some fuctionn which will verifiy payload and call jwt middleware
+
+    
     Json(LoginResponse {
         login: false,
         bearer: String::from("Testing"),
