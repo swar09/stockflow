@@ -20,7 +20,7 @@ pub struct Vendor {
     pub items: Vec<Item>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Item {
     pub id: Uuid,
     pub vendor_id: Uuid, // check weather i can estabilsh connection between vendor and item in database
@@ -28,14 +28,15 @@ pub struct Item {
     pub name: String,
     pub description: Option<String>,
     pub status: Status,
-    pub base_price: Option<u32>,
+    pub base_price: Option<i32>,
     pub currency_code: Option<String>,
     pub catgeory_ids: Option<Vec<Uuid>>,
-    pub units: u32,
-    pub variants: Option<Vec<ItemVariant>>,
-    pub stock: u32,
+    pub units: i32,
+    pub variants: Option<Vec<Uuid>>, // ItemVariant Uuid
+    pub stock: i32,
     pub uom: Option<String>, // unit of measure
     pub tags: Option<Vec<String>>,
+    #[sqlx(json)]
     pub attributes: Option<HashMap<String, String>>,
     pub image_urls: Option<Vec<String>>,
     pub has_variants: bool,
@@ -43,7 +44,7 @@ pub struct Item {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ItemVariant {
     pub id: Uuid,
     pub item_id: Uuid,
@@ -52,9 +53,9 @@ pub struct ItemVariant {
     pub name: String,
     pub status: Status,
     pub option_values: HashMap<String, String>,
-    pub base_price: u32,
+    pub base_price: i32,
     pub attributes: HashMap<String, String>,
-    pub stock: u32,
+    pub stock: i32,
     pub image_urls: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -66,7 +67,7 @@ pub struct Catgeory {
     pub slug: String,
     pub parent_id: Uuid,
     pub description: String,
-    pub sort_order: u8,
+    pub sort_order: i8,
     pub attributes: HashMap<String, String>,
     pub created_at: Utc,
     pub updated_at: Utc,
@@ -78,22 +79,21 @@ pub struct StockRecord {
     pub item_id: Uuid,
     pub variant_id: Option<Uuid>,
     pub location: String,
-    pub quantity_on_hand: u32,
-    pub quantity_reserved: u32,
-    pub quantity_available: u32,
-    pub reorder_point: u32,
-    pub reorder_quantity: u32,
+    pub quantity_on_hand: i32,
+    pub quantity_reserved: i32,
+    pub quantity_available: i32,
+    pub reorder_point: i32,
+    pub reorder_quantity: i32,
     pub updated_at: Utc,
 }
-
 pub struct StockAdjustment {
     pub id: Uuid,
     pub vendor_id: Uuid,
     pub stock_record_info: Uuid,
     pub adjustment_type: AdjustmenType,
-    pub quantity_delta: u32,
-    pub quantity_before: u32,
-    pub quantity_after: u32,
+    pub quantity_delta: i32,
+    pub quantity_before: i32,
+    pub quantity_after: i32,
     pub reasn: String,
     pub reference_id: String,
     pub performed_by: Uuid, // User or API key
@@ -150,6 +150,13 @@ pub enum Status {
     Suspened,
     Pedning,
 }
+#[derive(Deserialize, Debug, Clone, sqlx::Type, Serialize)]
+#[sqlx(type_name = "item_status", rename_all = "lowercase")]
+pub enum Itemstatus {
+    Active,
+    Inactive,
+    Archived,
+}
 
 #[derive(Deserialize, Debug, Clone, sqlx::Type, Serialize)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
@@ -173,9 +180,9 @@ pub struct ItemPayload {
     pub base_price: Option<i32>,
     pub currency_code: Option<String>,
     pub catgeory_ids: Option<Vec<Uuid>>,
-    pub units: u32,
+    pub units: i32,
     pub variants: Option<Vec<ItemVariant>>,
-    pub stock: u32,
+    pub stock: i32,
     pub uom: Option<String>, // unit of measure
     pub tags: Option<Vec<String>>,
     pub attributes: Option<HashMap<String, String>>,

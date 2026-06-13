@@ -5,12 +5,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use inventory_management_tool::routes::signup_handler;
+use inventory_management_tool::routes::{archive_item_by_id, signup_handler};
 use serde::Serialize;
 mod middleware;
 mod routes;
 mod types;
-use crate::routes::{get_vendor_by_id, login_handler};
+use crate::routes::{get_item_by_id, get_items_by_id, get_vendor_by_id, login_handler};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 #[derive(Serialize)]
@@ -58,26 +58,14 @@ async fn main() {
         .route("/login", post(login_handler))
         .route("/signup", post(signup_handler))
         .route("/vendor/{vendor_id}", get(get_vendor_by_id))
+        .route("/vendor/{vendor_id}/item/{item_id}", get(get_item_by_id))
+        .route("/vendor/{vendor_id}/item/", get(get_items_by_id))
+        .route(
+            "/vendor/{vendor_id}/item/{item_id}",
+            post(archive_item_by_id),
+        )
         .with_state(state.pool);
     /*
-
-    POST /login  user-login
-    POST /vendor create-new-vendor
-    GET /vendor/{id} get-vendor
-    DELETE /vendor/{id} suspend-vendor
-    PUT /vendor/{id} update-vendor-info
-
-    middleware check API key exp?
-
-    POST /vendor/{id}/item add-new-item
-    GET /vendor/{id}/item/{id} get-item-by-id
-    PUT /vendor/{id}/item/{id} edit-item-by-id
-    GET /vendor/{id}/item/ get-all-item-by-vendor
-    POST /vendor/{id}/item/{id}?archive=true archive0-item-by-id , archived-items-will-notbe-shown
-
-    POST /vendor/{id}/item/{id}/sku add-sku-code-to-item , there-is-no-same-skucode-in-entire-vendors-workspace
-    GET /vendor/{id}/sku get-all-sku-by-vendor
-    GET /vendor/{id}/item?x= filter-items-by-x where x-can-be-any-possible-or-multiple-filters
 
     DELETE /vendor/{id}/item/{id} system-must-not-allow-nonzero-stock-item-deletion, archive instead
 

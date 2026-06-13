@@ -20,7 +20,7 @@ CREATE TYPE item_status AS ENUM ('active', 'inactive', 'archived');
 CREATE TABLE item (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     vendor_id UUID NOT NULL,
-    sku VARCHAR(100) NOT NULL,
+    sku VARCHAR(100) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
     description VARCHAR(500),
     status item_status NOT NULL,

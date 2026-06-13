@@ -1,7 +1,9 @@
 use crate::middleware::get_jwt;
 use crate::middleware::get_pass_key;
 use crate::middleware::verify_passkey;
+use crate::types::Item;
 use crate::types::ItemPayload;
+use crate::types::Itemstatus;
 use crate::types::User;
 use crate::types::UserRole;
 use crate::types::Vendor;
@@ -234,7 +236,7 @@ pub async fn add_new_item(
     Path(vendor_id): Path<Uuid>,
     payload: Json<ItemPayload>,
 ) -> Json<bool> {
-    let _result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
+    let result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14); ")
     .bind(vendor_id)
     .bind(&payload.sku)
@@ -251,5 +253,134 @@ pub async fn add_new_item(
     .bind(sqlx::types::Json(&payload.attributes))
     .bind(&payload.image_urls)
     .execute(&pool).await;
-    Json(false)
+    match result {
+        Ok(_query) => Json(true),
+        Err(_e) => Json(false),
+    }
+}
+
+pub async fn get_item_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
+) -> Json<Option<Item>> {
+    // error handling and
+    // verify jwt
+    let result = sqlx::query_as::<_, Item>("")
+        .bind(vendor_id)
+        .bind(item_id)
+        .fetch_one(&pool)
+        .await;
+    match result {
+        Ok(item) => Json(Some(item)),
+        Err(_e) => {
+            // error e
+            Json(None)
+        }
+    }
+}
+
+pub async fn put_item_by_id(
+    State(pool): State<PgPool>,
+    Path(vendor_id): Path<Uuid>,
+    payload: Json<ItemPayload>,
+) -> Json<bool> {
+    let result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14); ")
+    .bind(vendor_id)
+    .bind(&payload.sku)
+    .bind(&payload.name)
+    .bind(&payload.description)
+    .bind(&payload.status)
+    .bind(payload.base_price)
+    .bind(&payload.currency_code)
+    .bind(&payload.catgeory_ids)
+    .bind(&payload.uom)
+    .bind(sqlx::types::Json(&payload.variants))
+    .bind(payload.has_variants)
+    .bind(&payload.tags)
+    .bind(sqlx::types::Json(&payload.attributes))
+    .bind(&payload.image_urls)
+    .execute(&pool).await;
+    match result {
+        Ok(_query) => Json(true),
+        Err(_e) => Json(false),
+    }
+}
+
+pub async fn get_items_by_id(
+    State(pool): State<PgPool>,
+    Path(vendor_id): Path<Uuid>,
+) -> Json<Option<Item>> {
+    let result = sqlx::query_as::<_, Item>("SELECT * FROM item WHERE vendor_id = $1")
+        .bind(vendor_id)
+        .fetch_one(&pool)
+        .await;
+    match result {
+        Ok(item) => Json(Some(item)),
+        Err(_e) => Json(None),
+    }
+}
+
+pub async fn archive_item_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
+) -> Json<bool> {
+    let result = sqlx::query("UPDATE item SET status = $1 WHERE item_id = $2 AND vendor_id = $3")
+        .bind(Itemstatus::Archived)
+        .bind(item_id)
+        .bind(vendor_id)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(query) => {
+            if query.rows_affected() != 0 {
+                Json(true)
+            } else {
+                Json(false)
+            }
+        }
+        Err(_e) => Json(false),
+    }
+}
+
+pub async fn set_sku_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
+    Json(sku): Json<String>,
+) -> Json<(bool, String, String)> {
+    let result = sqlx::query("UPDATE item SET sku = $1 WHERE vendor_id = $2 AND item_id = $3")
+        .bind(&sku)
+        .bind(vendor_id)
+        .bind(item_id)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(query) => {
+            if query.rows_affected() != 0 {
+                Json((true, item_id.to_string(), sku))
+            } else {
+                Json((false, "SKU IS DUPLICATE".to_string(), "".to_string()))
+            }
+        }
+        Err(_) => Json((false, "ERROR IN DATABASE ".to_string(), "".to_string())),
+    }
+}
+
+pub async fn get_skus_by_id(
+    State(pool): State<PgPool>,
+    Path(vendor_id): Path<Uuid>,
+) -> Json<Vec<(String,)>> {
+    let result = sqlx::query_as::<_, (String,)>("SELECT sku FROM item WHERE vendor_id = $1")
+        .bind(vendor_id)
+        .fetch_all(&pool)
+        .await;
+    match result {
+        Ok(vec) => Json(vec),
+        Err(e) => {
+            let error = format!("ERROR : {:?}", e);
+            Json(vec![(error,)])
+        }
+    }
 }
