@@ -1,16 +1,17 @@
 use std::time::Duration;
 
 use axum::{
-    Json, Router,
     routing::{get, post},
+    Json, Router,
 };
+use inventory_management_tool::routes::signup_handler;
 use serde::Serialize;
 mod middleware;
 mod routes;
 mod types;
 use crate::routes::login_handler;
-use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
 #[derive(Serialize)]
 struct Health {
     check: String,
@@ -36,6 +37,17 @@ async fn main() {
         .await
         .expect("Failed to connect to the database");
 
+    // Consider instead setting
+    let result = sqlx::migrate!("./migrations").run(&pool).await;
+    match result {
+        Ok(o) => {
+            println!("Migrations worked {:?}", o);
+        }
+        Err(e) => {
+            println!("Migrations failed {:?}", e);
+        }
+    }
+
     let state = AppState { pool };
 
     // build our application with a single route
@@ -43,7 +55,8 @@ async fn main() {
         .route("/", get(home))
         .route("/api/health", get(health_check))
         .route("/login", post(login_handler))
-        .with_state(state);
+        .route("/signup", post(signup_handler))
+        .with_state(state.pool);
     /*
 
     POST /login  user-login
@@ -53,7 +66,6 @@ async fn main() {
     PUT /vendor/{id} update-vendor-info
 
     middleware check API key exp?
-    admin can list and manage all vendors
 
     POST /vendor/{id}/item add-new-item
     GET /vendor/{id}/item/{id} get-item-by-id
@@ -75,7 +87,7 @@ async fn main() {
     */
 
     // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0: 3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 

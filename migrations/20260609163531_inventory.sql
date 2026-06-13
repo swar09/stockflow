@@ -1,54 +1,79 @@
--- Add migration script here
-CREATE TYPE vendor_status AS ENUM ('active','suspended','pending');
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE EXTENSION IF NOT EXISTS hstore;
+
+CREATE TYPE vendor_status AS ENUM ('active', 'suspended', 'pending');
+
 CREATE TABLE vendor (
-    id UUID PRIMARY KEY gen_random_uuid() ,
-    name VARCHAR(100) NOT NUll,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
     slug VARCHAR(100),
-    status vendor_status NOT NUll,
-    email VARCHAR(100) NOT NUll,
-    metadata hstore , 
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status vendor_status NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    metadata hstore,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TYPE item_status AS ENUM ('active', 'inactive', 'archived');
+
 CREATE TABLE item (
-    id UUID PRIMARY KEY gen_random_uuid(), 
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     vendor_id UUID NOT NULL,
     sku VARCHAR(100) NOT NULL,
-    name VARCHAR(100) NOT NULL, 
-    description VARCHAR(500), 
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
     status item_status NOT NULL,
-    unit_of_measure VARCHAR(80), 
+    unit_of_measure VARCHAR(80),
     base_price INT,
     currency_code VARCHAR(10),
-    category_ids UUID[], 
-    tags TEXT[],
+    category_ids UUID [],
+    tags TEXT [],
     attributes hstore,
-    image_urls TEXT[],
+    image_urls TEXT [],
     has_variants BOOLEAN,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT fk_vendor_item FOREIGN KEY(vendor_id) REFERENCES vendor(id)
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ,
+    CONSTRAINT fk_vendor_item FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
 
 CREATE TABLE item_variant (
-    id UUID PRIMARY KEY gen_random_uuid(),
-    item_id UUID NOT NULL, 
-    vendor_id UUID NOT NULL, 
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL,
+    vendor_id UUID NOT NULL,
     sku VARCHAR(100) NOT NULL,
     name VARCHAR(100) NOT NULL,
     status item_status NOT NULL,
-    option_values hstore NOT NULL, 
-    base_price INT , 
+    option_values hstore NOT NULL,
+    base_price INT,
     attributes hstore,
-    image_urls TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT fk_vendor_item_variant FOREIGN KEY(vendor_id) REFERENCES vendor(id)
+    image_urls TEXT [],
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ,
+    CONSTRAINT fk_vendor_item_variant FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
-    
-    
-    
-    -- id UUID PRIMARY KEY gen_random_uuid(), 
-    -- vendor_id UUID NOT NULL,
+
+CREATE TYPE user_status AS ENUM ('active', 'suspended', 'pending');
+
+CREATE TYPE user_role AS ENUM (
+    'admin',
+    'api',
+    'operator',
+    'read_only_user',
+    'service',
+    'sys_admin'
+);
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vendor_id UUID,
+    -- status user_status NOT NULL,
+    role user_role NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    passkey VARCHAR,
+    -- this is cryptic hash
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ,
+    CONSTRAINT fk_vendor_user FOREIGN KEY (vendor_id) REFERENCES vendor(id)
+);

@@ -2,22 +2,27 @@ use std::collections::HashMap;
 use chrono::Utc;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
 use uuid::Uuid;
 
+
 #[derive(Deserialize)]
+#[derive(FromRow, Debug)]
 pub struct Vendor {
     pub id: Uuid,
-    pub slug: String,
+    pub slug: Option<String>,
     pub name: String,
     pub status: Status,
     pub email: String,
+    #[sqlx(json)]
     pub metadata: Option<HashMap<String, String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(json)]
     pub items: Vec<Item>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
     pub id: Uuid,
     pub vendor_id: Uuid, // check weather i can estabilsh connection between vendor and item in database
@@ -40,7 +45,8 @@ pub struct Item {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Deserialize)]
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemVariant {
     pub id: Uuid,
     pub item_id: Uuid,
@@ -110,6 +116,15 @@ pub struct ApiKey {
     pub created_at: Utc,
 }
 
+#[derive(FromRow, Debug)]
+pub struct User {
+    pub id : Uuid, 
+    pub vendor_id : Uuid,
+    pub role : UserRole,
+    // pub email: 
+    pub passkey : String,
+}
+
 #[derive(Serialize)]
 pub struct VendorHandlerResponse {
     
@@ -133,9 +148,21 @@ pub enum AdjustmenType {
     Default,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, sqlx::Type, Serialize)]
+#[sqlx(type_name = "user_role", rename_all = "lowercase")]
 pub enum Status {
     Active,
     Suspened,
     Pedning,
+}
+
+#[derive(Deserialize, Debug, Clone, sqlx::Type, Serialize)]
+#[sqlx(type_name = "user_role", rename_all = "lowercase")]
+pub enum UserRole {
+    Admin,
+    Api,
+    Operator,
+    Read_Only_User,
+    Service,
+    Sys_Admin,
 }
