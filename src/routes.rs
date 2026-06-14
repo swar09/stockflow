@@ -1,14 +1,18 @@
 use crate::middleware::get_jwt;
 use crate::middleware::get_pass_key;
+use crate::middleware::verify_jwt;
 use crate::middleware::verify_passkey;
+use crate::types::Claims;
 use crate::types::Item;
 use crate::types::ItemPayload;
 use crate::types::Itemstatus;
 use crate::types::User;
 use crate::types::UserRole;
+use crate::types::UserRole::Sys_Admin;
 use crate::types::Vendor;
 use axum::extract::Path;
 use axum::extract::State;
+use axum::Extension;
 use axum::Json;
 use chrono::DateTime;
 use chrono::Utc;
@@ -152,24 +156,32 @@ pub async fn login_handler(
 //     Json(VendorHandlerResponse {})
 // }
 
-pub async fn get_vendor(State(pool): State<PgPool>, Json(id): Json<Uuid>) -> Json<Option<Vendor>> {
-    let result = sqlx::query_as::<_, Vendor>("SELECT * from vendors WHERE id = $1")
-        .bind(id)
-        .fetch_one(&pool)
-        .await;
+pub async fn get_vendors(State(pool): State<PgPool>) -> Json<Option<Vec<Vendor>>> {
+    let token = String::from("");
+    let (_, _, user_role, _) = verify_jwt(token).await;
+    if user_role.unwrap() == UserRole::Sys_Admin {
+        let result = sqlx::query_as::<_, Vendor>("SELECT * from vendors ;")
+            .fetch_all(&pool)
+            .await;
 
-    match result {
-        Ok(vendor) => Json(Some(vendor)),
-        Err(_e) => Json(None),
+        match result {
+            Ok(vendor) => Json(Some(vendor)),
+            Err(_e) => Json(None),
+        }
+    } else {
+        Json(None)
     }
 }
 
 pub async fn delete_vendor(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Json(id): Json<Uuid>,
 ) -> Json<Option<Vendor>> {
-    // check jwt && role >= ADMIN
-    // then only vendor suspensetion
+    if claims.role < UserRole::Admin && claims.vendor != id.to_string() && claims.role != Sys_Admin
+    {
+        return Json(None);
+    }
 
     let result =
         sqlx::query_as::<_, Vendor>("UPDATE vendor SET status = 'suspended' WHERE id = $1")
@@ -185,10 +197,15 @@ pub async fn delete_vendor(
 
 pub async fn put_vendor(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<Vendor>,
 ) -> Json<Option<Vendor>> {
-    // check jwt && role >= ADMIN
-    // then only vendor update
+    if claims.role < UserRole::Admin
+        && claims.vendor != payload.id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(None);
+    }
 
     let result = sqlx::query_as::<_, Vendor>(
         "UPDATE vendors SET 
@@ -213,8 +230,15 @@ pub async fn put_vendor(
 
 pub async fn get_vendor_by_id(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
 ) -> Json<Option<Vendor>> {
+    if claims.role < UserRole::Admin
+        && claims.vendor != vendor_id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(None);
+    }
     let result = sqlx::query_as::<_, Vendor>("SELECT * FROM vendor WHERE id = $1")
         .bind(vendor_id)
         .fetch_one(&pool)
@@ -232,9 +256,16 @@ pub async fn get_vendor_by_id(
 
 pub async fn add_new_item(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
     payload: Json<ItemPayload>,
 ) -> Json<bool> {
+    if claims.role < UserRole::Operator
+        && claims.vendor != vendor_id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(false);
+    }
     let result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14); ")
     .bind(vendor_id)
@@ -260,10 +291,12 @@ pub async fn add_new_item(
 
 pub async fn get_item_by_id(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
 ) -> Json<Option<Item>> {
-    // error handling and
-    // verify jwt
+    if claims.role < UserRole::Read_Only_User {
+        return Json(None);
+    }
     let result = sqlx::query_as::<_, Item>("")
         .bind(vendor_id)
         .bind(item_id)
@@ -281,8 +314,15 @@ pub async fn get_item_by_id(
 pub async fn put_item_by_id(
     State(pool): State<PgPool>,
     Path(vendor_id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
     payload: Json<ItemPayload>,
 ) -> Json<bool> {
+    if claims.role < UserRole::Operator
+        && claims.vendor != vendor_id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(false);
+    }
     let result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14); ")
     .bind(vendor_id)
@@ -308,8 +348,15 @@ pub async fn put_item_by_id(
 
 pub async fn get_items_by_id(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
 ) -> Json<Option<Item>> {
+    if claims.role < UserRole::Operator
+        && claims.vendor != vendor_id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(None);
+    }
     let result = sqlx::query_as::<_, Item>("SELECT * FROM item WHERE vendor_id = $1")
         .bind(vendor_id)
         .fetch_one(&pool)
@@ -322,8 +369,15 @@ pub async fn get_items_by_id(
 
 pub async fn archive_item_by_id(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
 ) -> Json<bool> {
+    if claims.role < UserRole::Admin
+        && claims.vendor != vendor_id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(false);
+    }
     let result = sqlx::query("UPDATE item SET status = $1 WHERE item_id = $2 AND vendor_id = $3")
         .bind(Itemstatus::Archived)
         .bind(item_id)
@@ -346,8 +400,15 @@ pub async fn archive_item_by_id(
 pub async fn set_sku_by_id(
     State(pool): State<PgPool>,
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
+    Extension(claims): Extension<Claims>,
     Json(sku): Json<String>,
-) -> Json<(bool, String, String)> {
+) -> Json<Option<(bool, String, String)>> {
+    if claims.role < UserRole::Operator
+        && claims.vendor != vendor_id.to_string()
+        && claims.role != Sys_Admin
+    {
+        return Json(None);
+    }
     let result = sqlx::query("UPDATE item SET sku = $1 WHERE vendor_id = $2 AND item_id = $3")
         .bind(&sku)
         .bind(vendor_id)
@@ -358,19 +419,31 @@ pub async fn set_sku_by_id(
     match result {
         Ok(query) => {
             if query.rows_affected() != 0 {
-                Json((true, item_id.to_string(), sku))
+                Json(Some((true, item_id.to_string(), sku)))
             } else {
-                Json((false, "SKU IS DUPLICATE".to_string(), "".to_string()))
+                Json(Some((
+                    false,
+                    "SKU IS DUPLICATE".to_string(),
+                    "".to_string(),
+                )))
             }
         }
-        Err(_) => Json((false, "ERROR IN DATABASE ".to_string(), "".to_string())),
+        Err(_) => Json(Some((
+            false,
+            "ERROR IN DATABASE ".to_string(),
+            "".to_string(),
+        ))),
     }
 }
 
 pub async fn get_skus_by_id(
     State(pool): State<PgPool>,
     Path(vendor_id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
 ) -> Json<Vec<(String,)>> {
+    if claims.role < UserRole::Read_Only_User {
+        return Json(Vec::new());
+    }
     let result = sqlx::query_as::<_, (String,)>("SELECT sku FROM item WHERE vendor_id = $1")
         .bind(vendor_id)
         .fetch_all(&pool)

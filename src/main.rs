@@ -4,16 +4,16 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use inventory_management_tool::routes::{
-    archive_item_by_id, get_skus_by_id, put_item_by_id, signup_handler,
-};
+
+use inventory_management_tool::middleware::auth_middleware;
 use serde::Serialize;
 mod middleware;
 mod routes;
 mod types;
 use crate::routes::{
-    add_new_item, delete_vendor, get_item_by_id, get_items_by_id, get_vendor, get_vendor_by_id,
-    login_handler, put_vendor, set_sku_by_id,
+    add_new_item, archive_item_by_id, delete_vendor, get_item_by_id, get_items_by_id,
+    get_skus_by_id, get_vendor_by_id, get_vendors, login_handler, put_item_by_id, put_vendor,
+    set_sku_by_id, signup_handler,
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -76,8 +76,9 @@ async fn main() {
         .route("/vendor/{vendor_id}/item/{item_id}", post(put_item_by_id))
         .route("/vendor/{vendor}/item/new", post(add_new_item))
         .route("/vendor/{vendor_id}", delete(delete_vendor))
-        .route("/vendor", get(get_vendor))
+        .route("/vendor", get(get_vendors))
         .route("/vendor/{vendor_id}", put(put_vendor))
+        .route_layer(axum::middleware::from_fn(auth_middleware))
         .with_state(state.pool);
     /*
 
@@ -87,13 +88,12 @@ async fn main() {
     PUT  /vendor/{id}/item/XXXX update-items-by-config-file-CSV
     POST /vendor/{id}/item/{id}/variant add-variants-for-item , if vriant!=0 , has_variant=1
 
+    fn which will verify the jwt and return the user_id , vendor_id
 
     */
 
     // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 

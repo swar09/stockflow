@@ -1,29 +1,17 @@
+use crate::types::{Claims, UserRole};
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-// use std::os::OsRng;
-// use rand_os::OsRng;
-// use argon2::password_hash::rand_os::OsRng;
-use rand_core::OsRng;
-
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use jsonwebtoken::encode;
 use jsonwebtoken::errors::Error;
 use jsonwebtoken::*;
-use serde::Deserialize;
-use serde::Serialize;
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use rand_core::OsRng;
 use uuid::Uuid;
 
-use crate::types::UserRole;
-
 pub struct testing {}
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    user: String,   // Subject (usually user ID)
-    vendor: String, // Custom claim
-    role: UserRole,
-    exp: usize, // Expiration time (Required for validation)
-}
 
 pub async fn get_jwt(id: Uuid, role: UserRole, vendor_id: Uuid) -> Result<String, Error> {
     // get the secret from dot env
@@ -77,4 +65,49 @@ pub async fn verify_passkey(hashed: String, password: &[u8]) -> bool {
         }
     }
     false
+}
+
+pub async fn verify_jwt(token: String) -> (bool, Option<String>, Option<UserRole>, Option<String>) {
+    // result : bool , user_id : some UUid , User_role Some Enum, Vendor_id: soome uuid ,
+    let secret = dotenv::var("JWT_SECRET_KEY").expect("UNABLE TO GET JWT SECRET");
+    let result = decode::<Claims>(
+        &token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &Validation::new(Algorithm::HS256),
+    );
+    match result {
+        Ok(tokendata) => {
+            let user_id = tokendata.claims.user; // user id
+            let user_role = tokendata.claims.role; // user role
+            let vendor_id = tokendata.claims.vendor; // vendor id
+
+            (true, Some(user_id), Some(user_role), Some(vendor_id))
+        }
+        Err(_e) => (false, None, None, None),
+    }
+}
+
+pub async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+    let token = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    // let (_, user_id, user_role, vendor_id) = ;
+    match verify_jwt(String::from(token)).await {
+        (_, Some(user_id), Some(user_role), Some(vendor_id)) => {
+            req.extensions_mut().insert(Claims {
+                user: user_id,
+                vendor: vendor_id,
+                role: user_role,
+                exp: 3600000,
+            });
+        }
+        _ => {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    }
+
+    Ok(next.run(req).await)
 }

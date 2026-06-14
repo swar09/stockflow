@@ -157,15 +157,14 @@ pub enum Itemstatus {
     Inactive,
     Archived,
 }
-
-#[derive(Deserialize, Debug, Clone, sqlx::Type, Serialize)]
+#[derive(PartialEq, Deserialize, Debug, Clone, sqlx::Type, Serialize, Eq, PartialOrd, Ord)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
 pub enum UserRole {
+    Read_Only_User,
+    Operator,
+    Service,
     Admin,
     Api,
-    Operator,
-    Read_Only_User,
-    Service,
     Sys_Admin,
 }
 
@@ -190,4 +189,12 @@ pub struct ItemPayload {
     pub has_variants: bool,
     // pub created_at: DateTime<Utc>,
     // pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Claims {
+    pub user: String,   // Subject (usually user ID)
+    pub vendor: String, // Custom claim
+    pub role: UserRole,
+    pub exp: usize, // Expiration time (Required for validation)
 }
