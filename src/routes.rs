@@ -14,6 +14,7 @@ use crate::types::UserRole::Sys_Admin;
 use crate::types::Vendor;
 use axum::extract::Path;
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Extension;
 use axum::Json;
 use chrono::DateTime;
@@ -53,30 +54,23 @@ pub struct SignupResponse {
     result: bool,
     message: String,
 }
-
+// use std::result::Result::Ok;
 pub async fn signup_handler(
     State(pool): State<PgPool>,
     payload: Json<SignupPayload>,
-) -> Json<SignupResponse> {
+) -> Result<Json<SignupResponse>, StatusCode> {
     // query the db and write to users table
     // and return the result
-    let result = sqlx::query("SELECT 1 FROM users WHERE email = $1")
+    let result = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE email = $1)")
         .bind(&payload.email)
-        .execute(&pool)
+        .fetch_one(&pool)
         .await;
     match result {
-        Ok(reponse) => {
-            println!("{:#?}", reponse);
-            if reponse.rows_affected() != 0 {
-                return Json(SignupResponse {
-                    result: false,
-                    message: String::from("User with same email exsits"),
-                });
-            }
+        Ok(true) => {
+            return Err(StatusCode::CONFLICT);
         }
-        Err(e) => {
-            println!("{:#?}", e)
-        }
+        Ok(false) => { /*Do nothing user doesnot exists*/ }
+        Err(_e) => {}
     }
     let passkey = get_pass_key(payload.pass.clone()).await;
     let result =
@@ -88,38 +82,24 @@ pub async fn signup_handler(
             .execute(&pool)
             .await;
     match result {
-        Ok(response) => {
-            if response.rows_affected() == 0 {
-                Json(SignupResponse {
-                    result: false,
-                    message: String::from("Failed"),
-                })
-            } else {
-                Json(SignupResponse {
+        Ok(query) => {
+            if query.rows_affected() != 0 {
+                Ok(Json(SignupResponse {
                     result: true,
-                    message: String::from("Sucess"),
-                })
+                    message: String::from("Signup Sucessfull !"),
+                }))
+            } else {
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         }
-        Err(e) => {
-            println!("ERROR :{:#?}", e);
-            Json(SignupResponse {
-                result: false,
-                message: String::from("Failed"),
-            })
-        }
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
-
-    // Json(SignupResponse {
-    //     result: false,
-    //     message: String::from("Sign up failed"),
-    // })
 }
 
 pub async fn login_handler(
     State(pool): State<PgPool>,
     payload: Json<LoginPayload>,
-) -> Json<Option<LoginResponse>> {
+) -> Result<Json<LoginResponse>, StatusCode> {
     let user_result = sqlx::query_as::<_, User>(
         "SELECT id, vendor_id, role, passkey FROM users where email = $1",
     )
@@ -131,34 +111,23 @@ pub async fn login_handler(
         Ok(u) => {
             if verify_passkey(u.passkey, payload.pass.as_bytes()).await {
                 match get_jwt(u.id, u.role, u.vendor_id).await {
-                    Ok(token) => Json(Some(LoginResponse {
+                    Ok(token) => Ok(Json(LoginResponse {
                         login: true,
                         bearer: token,
                         expires_at: Some(Utc::now()),
                     })),
-                    Err(_e) => Json(Some(LoginResponse {
-                        login: false,
-                        bearer: String::from("Failed to get_jwt"),
-                        expires_at: None,
-                    })),
+                    Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
                 }
             } else {
-                println!("wrong password");
-                Json(None)
+                // println!("wrong password");
+                Err(StatusCode::UNAUTHORIZED)
             }
         }
-        Err(e) => {
-            println!("ERROR AT LOGIN : {e}");
-            Json(None)
-        }
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
-// pub async fn vendor_handler(_payload: Json<Vendor>) -> Json<VendorHandlerResponse> {
-//     Json(VendorHandlerResponse {})
-// }
-
-pub async fn get_vendors(State(pool): State<PgPool>) -> Json<Option<Vec<Vendor>>> {
+pub async fn get_vendors(State(pool): State<PgPool>) -> Result<Json<Vec<Vendor>>, StatusCode> {
     let token = String::from("");
     let (_, _, user_role, _) = verify_jwt(token).await;
     if user_role.unwrap() == UserRole::Sys_Admin {
@@ -167,11 +136,11 @@ pub async fn get_vendors(State(pool): State<PgPool>) -> Json<Option<Vec<Vendor>>
             .await;
 
         match result {
-            Ok(vendor) => Json(Some(vendor)),
-            Err(_e) => Json(None),
+            Ok(vendor) => Ok(Json(vendor)),
+            Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         }
     } else {
-        Json(None)
+        Err(StatusCode::UNAUTHORIZED)
     }
 }
 
@@ -179,10 +148,10 @@ pub async fn delete_vendor(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
     Json(id): Json<Uuid>,
-) -> Json<Option<Vendor>> {
+) -> Result<Json<Vendor>, StatusCode> {
     if claims.role < UserRole::Admin && claims.vendor != id.to_string() && claims.role != Sys_Admin
     {
-        return Json(None);
+        return Err(StatusCode::UNAUTHORIZED);
     }
 
     let result =
@@ -192,8 +161,8 @@ pub async fn delete_vendor(
             .await;
 
     match result {
-        Ok(vendor) => Json(Some(vendor)),
-        Err(_e) => Json(None),
+        Ok(vendor) => Ok(Json(vendor)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -201,12 +170,12 @@ pub async fn put_vendor(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Vendor>,
-) -> Json<Option<Vendor>> {
+) -> Result<Json<Vendor>, StatusCode> {
     if claims.role < UserRole::Admin
         && claims.vendor != payload.id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(None);
+        return Err(StatusCode::UNAUTHORIZED);
     }
 
     let result = sqlx::query_as::<_, Vendor>(
@@ -225,8 +194,8 @@ pub async fn put_vendor(
     .await;
 
     match result {
-        Ok(vendor) => Json(Some(vendor)),
-        Err(_e) => Json(None),
+        Ok(vendor) => Ok(Json(vendor)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -234,12 +203,12 @@ pub async fn get_vendor_by_id(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
-) -> Json<Option<Vendor>> {
+) -> Result<Json<Vendor>, StatusCode> {
     if claims.role < UserRole::Admin
         && claims.vendor != vendor_id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(None);
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query_as::<_, Vendor>("SELECT * FROM vendor WHERE id = $1")
         .bind(vendor_id)
@@ -247,11 +216,10 @@ pub async fn get_vendor_by_id(
         .await;
 
     match result {
-        Ok(vendor) => Json(Some(vendor)),
+        Ok(vendor) => Ok(Json(vendor)),
         Err(_e) => {
             // error handling db error
-            println!("DB error");
-            Json(None)
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
@@ -261,12 +229,12 @@ pub async fn add_new_item(
     Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
     payload: Json<ItemPayload>,
-) -> Json<bool> {
+) -> Result<Json<bool>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(false);
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14); ")
@@ -286,8 +254,8 @@ pub async fn add_new_item(
     .bind(&payload.image_urls)
     .execute(&pool).await;
     match result {
-        Ok(_query) => Json(true),
-        Err(_e) => Json(false),
+        Ok(_query) => Ok(Json(true)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -295,21 +263,19 @@ pub async fn get_item_by_id(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
-) -> Json<Option<Item>> {
+) -> Result<Json<Item>, StatusCode> {
     if claims.role < UserRole::Read_Only_User {
-        return Json(None);
+        return Err(StatusCode::UNAUTHORIZED);
     }
-    let result = sqlx::query_as::<_, Item>("")
-        .bind(vendor_id)
-        .bind(item_id)
-        .fetch_one(&pool)
-        .await;
+    let result =
+        sqlx::query_as::<_, Item>("SELECT  * from item WHERE vendor_id = $1 AND item_id = $2")
+            .bind(vendor_id)
+            .bind(item_id)
+            .fetch_one(&pool)
+            .await;
     match result {
-        Ok(item) => Json(Some(item)),
-        Err(_e) => {
-            // error e
-            Json(None)
-        }
+        Ok(item) => Ok(Json(item)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -318,12 +284,12 @@ pub async fn put_item_by_id(
     Path(vendor_id): Path<Uuid>,
     Extension(claims): Extension<Claims>,
     payload: Json<ItemPayload>,
-) -> Json<bool> {
+) -> Result<Json<bool>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(false);
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query("INSERT INTO item (vendor_id, sku, name, description, status, base_price, currency_code, catgeory_ids,  unit_of_measure, variant, has_variants, tags, attributes, image_urls ) 
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14); ")
@@ -343,8 +309,8 @@ pub async fn put_item_by_id(
     .bind(&payload.image_urls)
     .execute(&pool).await;
     match result {
-        Ok(_query) => Json(true),
-        Err(_e) => Json(false),
+        Ok(_query) => Ok(Json(true)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -352,20 +318,20 @@ pub async fn get_items_by_id(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
     Path(vendor_id): Path<Uuid>,
-) -> Json<Option<Item>> {
+) -> Result<Json<Option<Vec<Item>>>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(None);
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query_as::<_, Item>("SELECT * FROM item WHERE vendor_id = $1")
         .bind(vendor_id)
-        .fetch_one(&pool)
+        .fetch_all(&pool)
         .await;
     match result {
-        Ok(item) => Json(Some(item)),
-        Err(_e) => Json(None),
+        Ok(item) => Ok(Json(Some(item))),
+        Err(_e) => Err(StatusCode::UNAUTHORIZED),
     }
 }
 
@@ -373,12 +339,12 @@ pub async fn archive_item_by_id(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
-) -> Json<bool> {
+) -> Result<Json<bool>, StatusCode> {
     if claims.role < UserRole::Admin
         && claims.vendor != vendor_id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(false);
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query("UPDATE item SET status = $1 WHERE item_id = $2 AND vendor_id = $3")
         .bind(Itemstatus::Archived)
@@ -390,12 +356,12 @@ pub async fn archive_item_by_id(
     match result {
         Ok(query) => {
             if query.rows_affected() != 0 {
-                Json(true)
+                Ok(Json(true))
             } else {
-                Json(false)
+                Err(StatusCode::NO_CONTENT)
             }
         }
-        Err(_e) => Json(false),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -404,12 +370,12 @@ pub async fn set_sku_by_id(
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<Claims>,
     Json(sku): Json<String>,
-) -> Json<Option<(bool, String, String)>> {
+) -> Result<Json<Option<(bool, String, String)>>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
         && claims.role != Sys_Admin
     {
-        return Json(None);
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query("UPDATE item SET sku = $1 WHERE vendor_id = $2 AND item_id = $3")
         .bind(&sku)
@@ -421,20 +387,12 @@ pub async fn set_sku_by_id(
     match result {
         Ok(query) => {
             if query.rows_affected() != 0 {
-                Json(Some((true, item_id.to_string(), sku)))
+                Ok(Json(Some((true, item_id.to_string(), sku))))
             } else {
-                Json(Some((
-                    false,
-                    "SKU IS DUPLICATE".to_string(),
-                    "".to_string(),
-                )))
+                Err(StatusCode::NO_CONTENT)
             }
         }
-        Err(_) => Json(Some((
-            false,
-            "ERROR IN DATABASE ".to_string(),
-            "".to_string(),
-        ))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -442,27 +400,24 @@ pub async fn get_skus_by_id(
     State(pool): State<PgPool>,
     Path(vendor_id): Path<Uuid>,
     Extension(claims): Extension<Claims>,
-) -> Json<Vec<(String,)>> {
+) -> Result<Json<Vec<(String,)>>, StatusCode> {
     if claims.role < UserRole::Read_Only_User {
-        return Json(Vec::new());
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query_as::<_, (String,)>("SELECT sku FROM item WHERE vendor_id = $1")
         .bind(vendor_id)
         .fetch_all(&pool)
         .await;
     match result {
-        Ok(vec) => Json(vec),
-        Err(e) => {
-            let error = format!("ERROR : {:?}", e);
-            Json(vec![(error,)])
-        }
+        Ok(vec) => Ok(Json(vec)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
 pub async fn post_csv_vendors(
     State(pool): State<PgPool>,
     Json(payload): Json<Vec<CsvRecordVendor>>,
-) -> Json<bool> {
+) -> Result<Json<bool>, StatusCode> {
     if let Some(record) = payload.into_iter().next() {
         let result = sqlx::query(
             "INSERT INTO vendor (slug , name, status, email, metadata, items)
@@ -480,22 +435,22 @@ pub async fn post_csv_vendors(
         match result {
             Ok(query) => {
                 if query.rows_affected() == 0 {
-                    return Json(false);
+                    return Err(StatusCode::CONFLICT);
                 } else {
-                    return Json(true);
+                    return Ok(Json(true));
                 }
             }
             Err(_e) => {
-                return Json(false);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
     }
-    Json(false)
+    Err(StatusCode::NOT_MODIFIED)
 }
 pub async fn post_csv_items(
     State(pool): State<PgPool>,
     Json(payload): Json<Vec<CsvRecordItem>>,
-) -> Json<bool> {
+) -> Result<Json<bool>, StatusCode> {
     if let Some(record) = payload.into_iter().next() {
         let result = sqlx::query(
             "INSERT INTO vendor (vendor_id , sku, name, description, status, base_price, currency_code, catgeory_ids, units, variants, stock, uom, tags, attributes, image_urls, has_variant)
@@ -523,15 +478,13 @@ pub async fn post_csv_items(
         match result {
             Ok(query) => {
                 if query.rows_affected() == 0 {
-                    return Json(false);
+                    return Err(StatusCode::NO_CONTENT);
                 } else {
-                    return Json(true);
+                    return Ok(Json(true));
                 }
             }
-            Err(_e) => {
-                return Json(false);
-            }
+            Err(_e) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
         }
     }
-    Json(false)
+    Err(StatusCode::NOT_MODIFIED)
 }

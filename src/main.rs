@@ -1,14 +1,13 @@
 use std::time::Duration;
 
-use axum::{
-    Json, Router, http::Uri, routing::{delete, get, post, put}
-};
 use axum::http::StatusCode;
-
-use inventory_management_tool::{
-    middleware::auth_middleware,
-
+use axum::{
+    http::Uri,
+    routing::{delete, get, post, put},
+    Json, Router,
 };
+
+use inventory_management_tool::middleware::auth_middleware;
 use serde::Serialize;
 mod middleware;
 mod routes;
@@ -106,6 +105,6 @@ async fn home() -> Json<ResponseHomePage> {
     Json(response)
 }
 
-async fn fallback(uri : Uri) -> (StatusCode, String )   {
+async fn fallback(uri: Uri) -> (StatusCode, String) {
     (StatusCode::NOT_FOUND, format!("No route for {uri}"))
 }

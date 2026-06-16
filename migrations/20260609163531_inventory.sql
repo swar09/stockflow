@@ -70,7 +70,7 @@ CREATE TABLE users (
     -- status user_status NOT NULL,
     role user_role NOT NULL,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
     passkey VARCHAR,
     -- this is cryptic hash
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
