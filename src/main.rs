@@ -1,19 +1,22 @@
 use std::time::Duration;
 
 use axum::{
-    routing::{delete, get, post, put},
-    Json, Router,
+    Json, Router, http::Uri, routing::{delete, get, post, put}
 };
+use axum::http::StatusCode;
 
-use inventory_management_tool::{middleware::auth_middleware, routes::post_csv_vendors};
+use inventory_management_tool::{
+    middleware::auth_middleware,
+
+};
 use serde::Serialize;
 mod middleware;
 mod routes;
 mod types;
 use crate::routes::{
     add_new_item, archive_item_by_id, delete_vendor, get_item_by_id, get_items_by_id,
-    get_skus_by_id, get_vendor_by_id, get_vendors, login_handler, post_csv_items, put_item_by_id,
-    put_vendor, set_sku_by_id, signup_handler,
+    get_skus_by_id, get_vendor_by_id, get_vendors, login_handler, post_csv_items, post_csv_vendors,
+    put_item_by_id, put_vendor, set_sku_by_id, signup_handler,
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -80,6 +83,8 @@ async fn main() {
         .route("/vendor/{vendor_id}/item/{item_id}", post(put_item_by_id))
         .route("/vendor/{vendor}/item/new", post(add_new_item))
         .route("/vendor/{vendor_id}/item", post(post_csv_items))
+        .route("/vendor/add", post(post_csv_vendors))
+        .fallback(fallback)
         .route_layer(axum::middleware::from_fn(auth_middleware))
         .with_state(state.pool);
 
@@ -99,4 +104,8 @@ async fn home() -> Json<ResponseHomePage> {
         message: String::from("Welcome to Inventory Management Tool"),
     };
     Json(response)
+}
+
+async fn fallback(uri : Uri) -> (StatusCode, String )   {
+    (StatusCode::NOT_FOUND, format!("No route for {uri}"))
 }

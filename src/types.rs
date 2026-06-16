@@ -8,16 +8,16 @@ use uuid::Uuid;
 #[derive(Deserialize, Serialize, FromRow, Debug)]
 pub struct Vendor {
     pub id: Uuid,
-    pub slug: Option<String>,
     pub name: String,
+    pub slug: Option<String>,
     pub status: Status,
     pub email: String,
     #[sqlx(json)]
     pub metadata: Option<HashMap<String, String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    #[sqlx(json)]
-    pub items: Vec<Item>,
+    // #[sqlx(json)]
+    // pub items: Vec<Item>,
 }
 #[derive(Deserialize, Serialize, FromRow, Debug)]
 pub struct CsvRecordVendor {

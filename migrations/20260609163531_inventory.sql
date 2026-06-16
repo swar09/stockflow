@@ -12,7 +12,7 @@ CREATE TABLE vendor (
     email VARCHAR(100) NOT NULL,
     metadata hstore,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TYPE item_status AS ENUM ('active', 'inactive', 'archived');
@@ -33,7 +33,7 @@ CREATE TABLE item (
     image_urls TEXT [],
     has_variants BOOLEAN,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_vendor_item FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
 
@@ -49,7 +49,7 @@ CREATE TABLE item_variant (
     attributes hstore,
     image_urls TEXT [],
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_vendor_item_variant FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
 
@@ -74,10 +74,33 @@ CREATE TABLE users (
     passkey VARCHAR,
     -- this is cryptic hash
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_vendor_user FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
 
-
 -- setup  automatic queryies wch will map the uud of vendors , items and tem variants etc in relational way 
 -- acroess tables 
+CREATE
+OR REPLACE FUNCTION update_modified_coloumn() RETURNS TRIGGER AS $ $ BEGIN NEW.updated_at = current_timestamp();
+
+RETURN NEW;
+
+END;
+
+$ $ language 'plpgsql';
+
+CREATE TRIGGER update_vendor_modtime BEFORE
+UPDATE
+    ON vendor FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+CREATE TRIGGER update_item_modtime BEFORE
+UPDATE
+    ON item FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+CREATE TRIGGER update_users_modtime BEFORE
+UPDATE
+    ON users FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+CREATE TRIGGER update_item_variant_modtime BEFORE
+UPDATE
+    ON item_variant FOR EACH ROW EXECUTE FUNCTION update_modified_column();
