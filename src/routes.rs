@@ -1,33 +1,21 @@
-use crate::middleware::check_vendor_id;
-use crate::middleware::get_cat_by_cat_id;
-use crate::middleware::get_jwt;
-use crate::middleware::get_pass_key;
-use crate::middleware::verify_jwt;
-use crate::middleware::verify_passkey;
-use crate::types::Category;
-use crate::types::Claims;
-use crate::types::CsvRecordItem;
-use crate::types::CsvRecordVendor;
-use crate::types::Item;
-use crate::types::ItemPayload;
-use crate::types::ItemVariant;
-use crate::types::Itemstatus;
-use crate::types::User;
-use crate::types::UserRole;
-use crate::types::UserRole::Sys_Admin;
-use crate::types::Vendor;
-use axum::extract::Path;
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::Extension;
-use axum::Json;
-use chrono::DateTime;
-use chrono::Utc;
+use crate::{
+    middleware::{
+        check_vendor_id, get_cat_by_cat_id, get_jwt, get_pass_key, verify_jwt, verify_passkey,
+    },
+    types::{
+        Category, CategoryPayload, Claims, CsvRecordItem, CsvRecordVendor, Item, ItemPayload,
+        ItemVariant, Itemstatus, StockAdjustment, StockRecord, User, UserRole, Vendor,
+    },
+};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
+};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-
 use sqlx::PgPool;
 use uuid::Uuid;
-// use sqlx::Pool;
 
 #[derive(Deserialize)]
 pub struct LoginPayload {
@@ -154,7 +142,9 @@ pub async fn delete_vendor(
     Extension(claims): Extension<Claims>,
     Json(id): Json<Uuid>,
 ) -> Result<Json<Vendor>, StatusCode> {
-    if claims.role < UserRole::Admin && claims.vendor != id.to_string() && claims.role != Sys_Admin
+    if claims.role < UserRole::Admin
+        && claims.vendor != id.to_string()
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -178,7 +168,7 @@ pub async fn put_vendor(
 ) -> Result<Json<Vendor>, StatusCode> {
     if claims.role < UserRole::Admin
         && claims.vendor != payload.id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -211,7 +201,7 @@ pub async fn get_vendor_by_id(
 ) -> Result<Json<Vendor>, StatusCode> {
     if claims.role < UserRole::Admin
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -237,7 +227,7 @@ pub async fn add_new_item(
 ) -> Result<Json<bool>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -292,7 +282,7 @@ pub async fn put_item_by_id(
 ) -> Result<Json<bool>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -326,7 +316,7 @@ pub async fn get_items_by_id(
 ) -> Result<Json<Option<Vec<Item>>>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -349,7 +339,7 @@ pub async fn archive_item_by_id(
 ) -> Result<Json<bool>, StatusCode> {
     if claims.role < UserRole::Admin
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -380,7 +370,7 @@ pub async fn set_sku_by_id(
 ) -> Result<Json<Option<(bool, String, String)>>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -503,7 +493,7 @@ pub async fn get_variant_by_id(
 ) -> Result<Json<Vec<ItemVariant>>, StatusCode> {
     if claims.role < UserRole::Operator
         && claims.vendor != vendor_id.to_string()
-        && claims.role != Sys_Admin
+        && claims.role != UserRole::Sys_Admin
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -637,16 +627,126 @@ pub async fn get_cat_by_id(
 
     match get_cat_by_cat_id(id, State(pool.clone())).await {
         Some(c) => Ok(Json(c)),
-        _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
-pub async fn put_cat_by_id() {}
-pub async fn delete_cat_by_id() {}
+pub async fn put_cat_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, _item_id, category_id)): Path<(Uuid, Uuid, Uuid)>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<CategoryPayload>,
+) -> Result<Json<bool>, StatusCode> {
+    match claims.role {
+        UserRole::Read_Only_User => return Err(StatusCode::UNAUTHORIZED),
+        UserRole::Sys_Admin => {}
+        _ => {
+            if claims.vendor != vendor_id.to_string() {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+    }
 
-pub async fn get_stock_record_by_id() {}
-pub async fn update_stock_by_id() {}
-pub async fn delte_stock_by_id() {}
+    let result = sqlx::query("UPDATE category vendor_id = $1 , name = $2, slug = $3, parent_id = $4, description = $4, sort_order = $5, attributes = $6 WHERE id = $7 ")
+    .bind(payload.vendor_id)
+    .bind(payload.name)
+    .bind(payload.slug)
+    .bind(payload.parent_id)
+    .bind(payload.description   )
+    .bind(payload.sort_order)
+    .bind(sqlx::types::Json(payload.attributes))
+    .bind(category_id)
+    .execute(&pool).await    ;
+
+    match result {
+        Ok(query) => {
+            if query.rows_affected() != 0 {
+                Err(StatusCode::NOT_MODIFIED)
+            } else {
+                Ok(Json(true))
+            }
+        }
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+pub async fn delete_cat_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, _item_id, category_id)): Path<(Uuid, Uuid, Uuid)>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<bool>, StatusCode> {
+    match claims.role {
+        UserRole::Read_Only_User => return Err(StatusCode::UNAUTHORIZED),
+        UserRole::Sys_Admin => {}
+        _ => {
+            if claims.vendor != vendor_id.to_string() {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+    }
+
+    let result = sqlx::query("DELETE FROM category WHERE id = $1")
+        .bind(category_id)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(query) => {
+            if query.rows_affected() != 0 {
+                Ok(Json(true))
+            } else {
+                Err(StatusCode::NOT_FOUND)
+            }
+        }
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+pub async fn get_stock_record_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<StockRecord>, StatusCode> {
+    if vendor_id.to_string() != claims.vendor  {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let result = sqlx::query_as("SELECT * FROM stockrecord WHERE vendor_id = $1 AND item_id = $2")
+        .bind(vendor_id)
+        .bind(item_id)
+        .fetch_one(&pool)
+        .await;
+    match result {
+        Ok(stockrecord) => Ok(Json(stockrecord)),
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+pub async fn update_stock_by_id(
+    State(pool): State<PgPool>,
+    Path((vendor_id, _item_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<StockAdjustment>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<bool>, StatusCode> {
+    match claims.role {
+        UserRole::Read_Only_User => return Err(StatusCode::UNAUTHORIZED),
+        UserRole::Sys_Admin => {}
+        _ => {
+            if claims.vendor != vendor_id.to_string() {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+    }
+
+    let _result = sqlx::query("UPDATE TABLE stockrecord () VALUES () WHERE id = $1 ")
+        .bind(payload.id)
+        .execute(&pool)
+        .await;
+
+    Err(StatusCode::NOT_IMPLEMENTED)
+}
+
+pub async fn delete_stock_by_id() {}
 
 pub async fn get_api_key() {}
-pub async fn put_api_key() {}
+pub async fn delete_api_key() {}

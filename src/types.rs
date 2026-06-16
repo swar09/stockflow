@@ -1,5 +1,4 @@
-use chrono::DateTime;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use std::collections::HashMap;
@@ -16,20 +15,15 @@ pub struct Vendor {
     pub metadata: Option<HashMap<String, String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    // #[sqlx(json)]
-    // pub items: Vec<Item>,
 }
 #[derive(Deserialize, Serialize, FromRow, Debug)]
 pub struct CsvRecordVendor {
-    // pub id: Uuid, //system genrated
     pub slug: Option<String>,
     pub name: String,
     pub status: Status,
     pub email: String,
     #[sqlx(json)]
     pub metadata: Option<HashMap<String, String>>,
-    // pub created_at: DateTime<Utc>, // system genrated
-    // pub updated_at: DateTime<Utc>, // system genrated
     #[sqlx(json)]
     pub items: Vec<Uuid>,
 }
@@ -60,7 +54,6 @@ pub struct Item {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct CsvRecordItem {
-    // pub id: Uuid, // system genrated
     pub vendor_id: Uuid, // check weather i can estabilsh connection between vendor and item in database
     pub sku: String,
     pub name: String,
@@ -78,10 +71,7 @@ pub struct CsvRecordItem {
     pub attributes: Option<HashMap<String, String>>,
     pub image_urls: Option<Vec<String>>,
     pub has_variants: bool,
-    // pub created_at: DateTime<Utc>,
-    // pub updated_at: DateTime<Utc>, //system genrated
 }
-// #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ItemVariant {
@@ -132,6 +122,17 @@ pub struct Category {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+#[derive(Deserialize, Serialize, FromRow, Debug)]
+pub struct CategoryPayload {
+    pub vendor_id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub parent_id: Uuid,
+    pub description: Option<String>,
+    pub sort_order: i32,
+    #[sqlx(json)]
+    pub attributes: Option<HashMap<String, String>>,
+}
 pub struct CsvRecordCatgeory {
     pub id: Uuid,
     pub vendor_id: Uuid,
@@ -144,6 +145,7 @@ pub struct CsvRecordCatgeory {
     pub created_at: Utc,
     pub updated_at: Utc,
 }
+#[derive(Deserialize, Serialize, FromRow, Debug)]
 
 pub struct StockRecord {
     pub id: Uuid,
@@ -156,8 +158,9 @@ pub struct StockRecord {
     pub quantity_available: i32,
     pub reorder_point: i32,
     pub reorder_quantity: i32,
-    pub updated_at: Utc,
+    pub updated_at: DateTime<Utc>,
 }
+#[derive(Deserialize, Serialize, FromRow, Debug)]
 pub struct StockAdjustment {
     pub id: Uuid,
     pub vendor_id: Uuid,
@@ -166,10 +169,10 @@ pub struct StockAdjustment {
     pub quantity_delta: i32,
     pub quantity_before: i32,
     pub quantity_after: i32,
-    pub reasn: String,
+    pub reason: String,
     pub reference_id: String,
-    pub performed_by: Uuid, // User or API key
-    pub created_at: Utc,
+    pub performed_by: Uuid,
+    pub created_at: DateTime<Utc>,
 }
 
 pub struct ApiKey {
@@ -178,7 +181,6 @@ pub struct ApiKey {
     pub name: String,
     pub key_prefix: String,
     pub key_hash: String,
-    // pub role: Role,
     pub status: ApiStatus,
     pub last_used_time: Utc,
     pub expires_at: Utc,
@@ -190,7 +192,7 @@ pub struct User {
     pub id: Uuid,
     pub vendor_id: Uuid,
     pub role: UserRole,
-    // pub email:
+    pub email: String,
     pub passkey: String,
 }
 
@@ -210,7 +212,8 @@ pub enum ApiStatus {
     Revoked,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, sqlx::Type, Serialize)]
+#[sqlx(type_name = "adjustment_type", rename_all = "lowercase")]
 pub enum AdjustmenType {
     Default,
 }
@@ -242,8 +245,6 @@ pub enum UserRole {
 
 #[derive(Deserialize, Serialize, FromRow, Debug)]
 pub struct ItemPayload {
-    // pub id: Uuid,
-    // pub vendor_id: Uuid, // check weather i can estabilsh connection between vendor and item in database
     pub sku: String,
     pub name: String,
     pub description: Option<String>,
@@ -259,14 +260,12 @@ pub struct ItemPayload {
     pub attributes: Option<HashMap<String, String>>,
     pub image_urls: Option<Vec<String>>,
     pub has_variants: bool,
-    // pub created_at: DateTime<Utc>,
-    // pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub user: String,   // Subject (usually user ID)
-    pub vendor: String, // Custom claim
+    pub user: String,
+    pub vendor: String,
     pub role: UserRole,
-    pub exp: usize, // Expiration time (Required for validation)
+    pub exp: usize,
 }

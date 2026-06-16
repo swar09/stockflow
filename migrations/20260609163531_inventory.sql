@@ -54,6 +54,8 @@ CREATE TABLE item_variant (
     CONSTRAINT fk_vendor_item_variant FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
 
+CREATE  TABLE stock ();
+
 CREATE TYPE user_status AS ENUM ('active', 'suspended', 'pending');
 
 CREATE TYPE user_role AS ENUM (
@@ -79,8 +81,7 @@ CREATE TABLE users (
     CONSTRAINT fk_vendor_user FOREIGN KEY (vendor_id) REFERENCES vendor(id)
 );
 
--- setup  automatic queryies wch will map the uud of vendors , items and tem variants etc in relational way 
--- acroess tables 
+
 CREATE
 OR REPLACE FUNCTION update_modified_coloumn() RETURNS TRIGGER AS $ $ BEGIN NEW.updated_at = current_timestamp();
 
