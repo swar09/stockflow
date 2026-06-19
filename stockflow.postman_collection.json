@@ -1,0 +1,1254 @@
+{
+  "info": {
+    "_postman_id": "7ca64761-e0ad-4d43-98bf-49f32386a3b2",
+    "name": "Stockflow API Test Suite",
+    "description": "A comprehensive Postman test suite that verifies every single route of the Stockflow inventory management backend in a logical sequence. It handles authentication, entity creation, updates, dependencies, and clean teardown, so it can run successfully even if the database is initially empty.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public Endpoints",
+      "item": [
+        {
+          "name": "Welcome Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response returns welcome message\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.contain(\"Welcome to Stockflow\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Health is OK\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.check).to.eql(\"ok\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "User Signup (Sys_Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"System Administrator\",\n  \"email\": \"sysadmin@example.com\",\n  \"pass\": \"password123\",\n  \"role\": \"Sys_Admin\",\n  \"vendor_id\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/signup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "signup"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 200 = Success, 409 = Conflict (User already exists from a previous run)",
+                  "pm.test(\"Status code is 200 or 409\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 409]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "User Login (Sys_Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"sysadmin@example.com\",\n  \"pass\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Login successful and JWT stored\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.login).to.be.true;",
+                  "    pm.expect(jsonData.bearer).to.not.be.empty;",
+                  "    pm.collectionVariables.set(\"jwt_token\", jsonData.bearer);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Vendor Operations",
+      "item": [
+        {
+          "name": "Bulk Import Vendors",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"slug\": \"test-vendor\",\n    \"name\": \"Test Vendor Inc.\",\n    \"status\": \"Active\",\n    \"email\": \"info@testvendor.com\",\n    \"metadata\": {\n      \"country\": \"US\",\n      \"tier\": \"gold\"\n    },\n    \"items\": []\n  }\n]"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true on successful import\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Vendors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Extract Vendor ID for newly created vendor\", function () {",
+                  "    var vendors = pm.response.json();",
+                  "    var testVendor = vendors.find(function(v) { return v.slug === 'test-vendor'; });",
+                  "    pm.expect(testVendor).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"vendor_id\", testVendor.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify vendor fields\", function () {",
+                  "    var vendor = pm.response.json();",
+                  "    pm.expect(vendor.id).to.eql(pm.collectionVariables.get(\"vendor_id\"));",
+                  "    pm.expect(vendor.slug).to.eql(\"test-vendor\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Vendor By ID",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{vendor_id}}\",\n  \"name\": \"Test Vendor Inc. Updated\",\n  \"slug\": \"test-vendor\",\n  \"status\": \"Active\",\n  \"email\": \"updated-info@testvendor.com\",\n  \"metadata\": {\n    \"country\": \"US\",\n    \"tier\": \"platinum\"\n  },\n  \"created_at\": \"2026-06-19T13:28:30Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify update output\", function () {",
+                  "    var vendor = pm.response.json();",
+                  "    pm.expect(vendor.name).to.eql(\"Test Vendor Inc. Updated\");",
+                  "    pm.expect(vendor.email).to.eql(\"updated-info@testvendor.com\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Item Operations",
+      "item": [
+        {
+          "name": "Bulk Import Items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"vendor_id\": \"{{vendor_id}}\",\n    \"sku\": \"ITEM-BULK-01\",\n    \"name\": \"Bulk Imported Item\",\n    \"description\": \"A bulk imported product description\",\n    \"status\": \"Active\",\n    \"base_price\": 450,\n    \"currency_code\": \"USD\",\n    \"catgeory_ids\": [],\n    \"units\": 10,\n    \"variants\": [],\n    \"stock\": 10,\n    \"uom\": \"pcs\",\n    \"tags\": [\"bulk\", \"imported\"],\n    \"attributes\": {\n      \"brand\": \"Acme\"\n    },\n    \"image_urls\": [],\n    \"has_variants\": false\n  }\n]"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Single Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"ITEM-123\",\n  \"name\": \"Stockflow Classic T-Shirt\",\n  \"description\": \"Comfortable 100% cotton classic t-shirt\",\n  \"status\": \"Active\",\n  \"base_price\": 1999,\n  \"currency_code\": \"USD\",\n  \"catgeory_ids\": [],\n  \"units\": 100,\n  \"variants\": [],\n  \"stock\": 100,\n  \"uom\": \"pcs\",\n  \"tags\": [\"apparel\", \"t-shirt\"],\n  \"attributes\": {\n    \"material\": \"cotton\",\n    \"color\": \"navy\"\n  },\n  \"image_urls\": [\"https://example.com/images/shirt.jpg\"],\n  \"has_variants\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/new",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "new"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true for item creation\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Extract Item ID for SKU ITEM-123\", function () {",
+                  "    var items = pm.response.json();",
+                  "    var item = items.find(function(i) { return i.sku === 'ITEM-123'; });",
+                  "    pm.expect(item).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"item_id\", item.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Item By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify item fields matching\", function () {",
+                  "    var item = pm.response.json();",
+                  "    pm.expect(item.id).to.eql(pm.collectionVariables.get(\"item_id\"));",
+                  "    pm.expect(item.sku).to.eql(\"ITEM-123\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Item By ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"ITEM-123\",\n  \"name\": \"Stockflow Classic T-Shirt (Updated Name)\",\n  \"description\": \"Super soft cotton t-shirt with premium finish\",\n  \"status\": \"Active\",\n  \"base_price\": 2499,\n  \"currency_code\": \"USD\",\n  \"catgeory_ids\": [],\n  \"units\": 100,\n  \"variants\": [],\n  \"stock\": 100,\n  \"uom\": \"pcs\",\n  \"tags\": [\"apparel\", \"t-shirt\", \"premium\"],\n  \"attributes\": {\n    \"material\": \"combed-cotton\",\n    \"color\": \"navy\"\n  },\n  \"image_urls\": [\"https://example.com/images/shirt_updated.jpg\"],\n  \"has_variants\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true on success\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get SKUs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/sku",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "sku"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify list contains ITEM-123\", function () {",
+                  "    var skus = pm.response.json();",
+                  "    var hasSku = skus.some(function(tuple) { return tuple[0] === 'ITEM-123'; });",
+                  "    pm.expect(hasSku).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Item SKU",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "\"ITEM-123-MODIFIED\""
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/sku",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "sku"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify response contains updated SKU details\", function () {",
+                  "    var data = pm.response.json();",
+                  "    // Returns Option<(bool, String, String)>",
+                  "    pm.expect(data[0]).to.be.true;",
+                  "    pm.expect(data[1]).to.eql(pm.collectionVariables.get(\"item_id\"));",
+                  "    pm.expect(data[2]).to.eql(\"ITEM-123-MODIFIED\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Item Variant Operations",
+      "item": [
+        {
+          "name": "Upsert Variant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{variant_id}}\",\n  \"item_id\": \"{{item_id}}\",\n  \"vendor_id\": \"{{vendor_id}}\",\n  \"sku\": \"ITEM-123-VAR-M\",\n  \"name\": \"Navy Blue M T-Shirt\",\n  \"status\": \"Active\",\n  \"option_values\": {\n    \"size\": \"M\",\n    \"color\": \"Navy\"\n  },\n  \"base_price\": 2199,\n  \"attributes\": {\n    \"fit\": \"regular\"\n  },\n  \"image_urls\": [],\n  \"created_at\": \"2026-06-19T13:28:30Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/variant/{{variant_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "variant",
+                "{{variant_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true on success\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Item Variants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/variant",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "variant"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify variant in response\", function () {",
+                  "    var variants = pm.response.json();",
+                  "    pm.expect(variants.length).to.be.at.least(1);",
+                  "    var testVar = variants.find(function(v) { return v.id === pm.collectionVariables.get(\"variant_id\"); });",
+                  "    pm.expect(testVar).to.not.be.undefined;",
+                  "    pm.expect(testVar.sku).to.eql(\"ITEM-123-VAR-M\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Category Operations",
+      "item": [
+        {
+          "name": "Upsert Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_id\": \"{{vendor_id}}\",\n  \"name\": \"Summer Apparel\",\n  \"slug\": \"summer-apparel\",\n  \"parent_id\": null,\n  \"description\": \"Apparel suited for summer season\",\n  \"sort_order\": 2,\n  \"attributes\": {\n    \"season\": \"summer\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/category/{{category_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "category",
+                "{{category_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true on success\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Category Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/category/{{category_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "category",
+                "{{category_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify category details matches\", function () {",
+                  "    var category = pm.response.json();",
+                  "    pm.expect(category.id).to.eql(pm.collectionVariables.get(\"category_id\"));",
+                  "    pm.expect(category.slug).to.eql(\"summer-apparel\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Item Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/category",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "category"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Stock Operations (Database empty status tests)",
+      "item": [
+        {
+          "name": "Get Stock Record (Expect 404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/stock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "stock"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Stock record not found on empty database returns 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Stock Record (Expect 404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"d3b07384-d113-4956-a5cc-9c8a94625b07\",\n  \"vendor_id\": \"{{vendor_id}}\",\n  \"stock_record_info\": \"d3b07384-d113-4956-a5cc-9c8a94625b07\",\n  \"adjustment_type\": \"Default\",\n  \"quantity_delta\": 50,\n  \"quantity_before\": 0,\n  \"quantity_after\": 50,\n  \"reason\": \"Test Stock Adjustment\",\n  \"reference_id\": \"ADJ-101\",\n  \"performed_by\": \"d3b07384-d113-4956-a5cc-9c8a94625b07\",\n  \"created_at\": \"2026-06-19T13:28:30Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/stock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "stock"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Updating non-existent stock record returns 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API Key Operations",
+      "item": [
+        {
+          "name": "Create API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_id\": \"{{vendor_id}}\",\n  \"name\": \"Production Integration Key\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-key",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api-key"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify API key creation and extract ID\", function () {",
+                  "    var keyData = pm.response.json();",
+                  "    pm.expect(keyData.id).to.not.be.empty;",
+                  "    pm.expect(keyData.name).to.eql(\"Production Integration Key\");",
+                  "    pm.collectionVariables.set(\"api_key_id\", keyData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "\"{{api_key_id}}\""
+            },
+            "url": {
+              "raw": "{{base_url}}/api-key",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api-key"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true for revocation\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup / Teardown Operations",
+      "item": [
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/category/{{category_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "category",
+                "{{category_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true for deletion\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archive Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}/item/{{item_id}}/archive",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}",
+                "item",
+                "{{item_id}}",
+                "archive"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns true for archival\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete / Suspend Vendor",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendor/{{vendor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendor",
+                "{{vendor_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Verify vendor status updated to suspended\", function () {",
+                  "    var vendor = pm.response.json();",
+                  "    pm.expect(vendor.status).to.eql(\"Suspened\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "item_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "category_id",
+      "value": "b9f2c3d4-6e5f-4a0b-9c1d-8e2f3a4b5c6d",
+      "type": "string"
+    },
+    {
+      "key": "variant_id",
+      "value": "a8e1b9c2-5d4e-4f3a-8b1c-9d0e1f2a3b4c",
+      "type": "string"
+    },
+    {
+      "key": "api_key_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

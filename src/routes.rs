@@ -1,9 +1,9 @@
 use crate::{
-    middleware::{
-        check_vendor_id, get_cat_by_cat_id, get_jwt, get_pass_key,
-    },
+    middleware::{check_vendor_id, get_cat_by_cat_id, get_jwt, get_pass_key},
     types::{
-        ApiKey, ApiPayload, ApiStatus, Category, CategoryPayload, Claims, CsvRecordItem, CsvRecordVendor, Item, ItemPayload, ItemVariant, LoginPayload, LoginResponse, SignupPayload, SignupResponse, StockAdjustment, StockRecord, User, UserRole, Vendor
+        ApiKey, ApiPayload, ApiStatus, Category, CategoryPayload, Claims, CsvRecordItem,
+        CsvRecordVendor, Item, ItemPayload, ItemVariant, LoginPayload, LoginResponse,
+        SignupPayload, SignupResponse, StockAdjustment, StockRecord, User, UserRole, Vendor,
     },
 };
 use axum::{
@@ -27,7 +27,10 @@ pub async fn signup_handler(
         .await;
     match result {
         Ok(true) => {
-            tracing::warn!("Signup failed: user already exists for email {}", payload.email);
+            tracing::warn!(
+                "Signup failed: user already exists for email {}",
+                payload.email
+            );
             return Err(StatusCode::CONFLICT);
         }
         Ok(false) => {}
@@ -37,15 +40,16 @@ pub async fn signup_handler(
         }
     }
     let passkey = get_pass_key(payload.pass.clone()).await;
-    let result =
-        sqlx::query("INSERT INTO users (name, email, passkey, role, vendor_id) VALUES ($1, $2, $3, $4, $5);")
-            .bind(&payload.name)
-            .bind(&payload.email)
-            .bind(passkey)
-            .bind(&payload.role)
-            .bind(payload.vendor_id)
-            .execute(&pool)
-            .await;
+    let result = sqlx::query(
+        "INSERT INTO users (name, email, passkey, role, vendor_id) VALUES ($1, $2, $3, $4, $5);",
+    )
+    .bind(&payload.name)
+    .bind(&payload.email)
+    .bind(passkey)
+    .bind(&payload.role)
+    .bind(payload.vendor_id)
+    .execute(&pool)
+    .await;
     match result {
         Ok(query) => {
             if query.rows_affected() != 0 {
@@ -55,7 +59,10 @@ pub async fn signup_handler(
                     message: String::from("Signup Successful!"),
                 }))
             } else {
-                tracing::error!("Insert query succeeded but affected 0 rows for email {}", payload.email);
+                tracing::error!(
+                    "Insert query succeeded but affected 0 rows for email {}",
+                    payload.email
+                );
                 Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         }
@@ -103,7 +110,11 @@ pub async fn login_handler(
             }
         }
         Err(e) => {
-            tracing::warn!("Login failed: user not found or db error for email {}: {:?}", payload.email, e);
+            tracing::warn!(
+                "Login failed: user not found or db error for email {}: {:?}",
+                payload.email,
+                e
+            );
             Err(StatusCode::UNAUTHORIZED)
         }
     }
@@ -114,7 +125,10 @@ pub async fn get_vendors(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<Vendor>>, StatusCode> {
-    tracing::info!("Fetching all vendors. Requester claims role: {:?}", claims.role);
+    tracing::info!(
+        "Fetching all vendors. Requester claims role: {:?}",
+        claims.role
+    );
     if claims.role == UserRole::Sys_Admin {
         let result = sqlx::query_as::<_, Vendor>(
             "SELECT id, name, slug, status, email, hstore_to_jsonb(metadata) as metadata, created_at, updated_at FROM vendor;"
@@ -133,7 +147,10 @@ pub async fn get_vendors(
             }
         }
     } else {
-        tracing::warn!("Unauthorized attempt to fetch all vendors by user role: {:?}", claims.role);
+        tracing::warn!(
+            "Unauthorized attempt to fetch all vendors by user role: {:?}",
+            claims.role
+        );
         Err(StatusCode::FORBIDDEN)
     }
 }
@@ -148,7 +165,11 @@ pub async fn delete_vendor(
     if claims.role != UserRole::Sys_Admin
         && (claims.role < UserRole::Admin || claims.vendor != vendor_id.to_string())
     {
-        tracing::warn!("Unauthorized deletion request for vendor: {} by user: {}", vendor_id, claims.user);
+        tracing::warn!(
+            "Unauthorized deletion request for vendor: {} by user: {}",
+            vendor_id,
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -185,7 +206,11 @@ pub async fn put_vendor(
     if claims.role != UserRole::Sys_Admin
         && (claims.role < UserRole::Admin || claims.vendor != vendor_id.to_string())
     {
-        tracing::warn!("Unauthorized update request for vendor: {} by user: {}", vendor_id, claims.user);
+        tracing::warn!(
+            "Unauthorized update request for vendor: {} by user: {}",
+            vendor_id,
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -224,9 +249,12 @@ pub async fn get_vendor_by_id(
     Path(vendor_id): Path<Uuid>,
 ) -> Result<Json<Vendor>, StatusCode> {
     tracing::info!("Fetching vendor details for ID: {}", vendor_id);
-    if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string()
-    {
-        tracing::warn!("Unauthorized read request for vendor: {} by user: {}", vendor_id, claims.user);
+    if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string() {
+        tracing::warn!(
+            "Unauthorized read request for vendor: {} by user: {}",
+            vendor_id,
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
     let result = sqlx::query_as::<_, Vendor>(
@@ -254,11 +282,19 @@ pub async fn add_new_item(
     Path(vendor_id): Path<Uuid>,
     Json(payload): Json<ItemPayload>,
 ) -> Result<Json<bool>, StatusCode> {
-    tracing::info!("Adding new item to vendor: {} with SKU: {}", vendor_id, payload.sku);
+    tracing::info!(
+        "Adding new item to vendor: {} with SKU: {}",
+        vendor_id,
+        payload.sku
+    );
     if claims.role != UserRole::Sys_Admin
         && (claims.role < UserRole::Operator || claims.vendor != vendor_id.to_string())
     {
-        tracing::warn!("Unauthorized create item request for vendor: {} by user: {}", vendor_id, claims.user);
+        tracing::warn!(
+            "Unauthorized create item request for vendor: {} by user: {}",
+            vendor_id,
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
     let result = sqlx::query(
@@ -283,7 +319,11 @@ pub async fn add_new_item(
 
     match result {
         Ok(_) => {
-            tracing::info!("Item successfully created for SKU: {} under vendor: {}", payload.sku, vendor_id);
+            tracing::info!(
+                "Item successfully created for SKU: {} under vendor: {}",
+                payload.sku,
+                vendor_id
+            );
             Ok(Json(true))
         }
         Err(e) => {
@@ -301,7 +341,10 @@ pub async fn get_item_by_id(
 ) -> Result<Json<Item>, StatusCode> {
     tracing::info!("Fetching item: {} for vendor: {}", item_id, vendor_id);
     if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string() {
-        tracing::warn!("Unauthorized request for item details by user: {}", claims.user);
+        tracing::warn!(
+            "Unauthorized request for item details by user: {}",
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
     let result =
@@ -318,7 +361,12 @@ pub async fn get_item_by_id(
         Ok(item) => Ok(Json(item)),
         Err(sqlx::Error::RowNotFound) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
-            tracing::error!("Database error fetching item {} under vendor {}: {:?}", item_id, vendor_id, e);
+            tracing::error!(
+                "Database error fetching item {} under vendor {}: {:?}",
+                item_id,
+                vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -352,7 +400,7 @@ pub async fn put_item_by_id(
             image_urls = $10, 
             has_variants = $11,
             updated_at = NOW() 
-         WHERE id = $12 AND vendor_id = $13"
+         WHERE id = $12 AND vendor_id = $13",
     )
     .bind(&payload.name)
     .bind(&payload.description)
@@ -373,15 +421,28 @@ pub async fn put_item_by_id(
     match result {
         Ok(query) => {
             if query.rows_affected() != 0 {
-                tracing::info!("Successfully updated item {} under vendor {}", item_id, vendor_id);
+                tracing::info!(
+                    "Successfully updated item {} under vendor {}",
+                    item_id,
+                    vendor_id
+                );
                 Ok(Json(true))
             } else {
-                tracing::warn!("Update executed but item {} not found under vendor {}", item_id, vendor_id);
+                tracing::warn!(
+                    "Update executed but item {} not found under vendor {}",
+                    item_id,
+                    vendor_id
+                );
                 Err(StatusCode::NOT_FOUND)
             }
         }
         Err(e) => {
-            tracing::error!("Database error updating item {} under vendor {}: {:?}", item_id, vendor_id, e);
+            tracing::error!(
+                "Database error updating item {} under vendor {}: {:?}",
+                item_id,
+                vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -394,9 +455,11 @@ pub async fn get_items_by_id(
     Path(vendor_id): Path<Uuid>,
 ) -> Result<Json<Option<Vec<Item>>>, StatusCode> {
     tracing::info!("Fetching all active items for vendor: {}", vendor_id);
-    if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string()
-    {
-        tracing::warn!("Unauthorized access to vendor item list by user: {}", claims.user);
+    if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string() {
+        tracing::warn!(
+            "Unauthorized access to vendor item list by user: {}",
+            claims.user
+        );
         return Err(StatusCode::UNAUTHORIZED);
     }
     let result = sqlx::query_as::<_, Item>(
@@ -413,7 +476,11 @@ pub async fn get_items_by_id(
             Ok(Json(Some(item)))
         }
         Err(e) => {
-            tracing::error!("Database error listing items for vendor {}: {:?}", vendor_id, e);
+            tracing::error!(
+                "Database error listing items for vendor {}: {:?}",
+                vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -432,11 +499,12 @@ pub async fn archive_item_by_id(
         tracing::warn!("Unauthorized archive item request by user: {}", claims.user);
         return Err(StatusCode::FORBIDDEN);
     }
-    let result = sqlx::query("UPDATE item SET status = 'archived' WHERE id = $1 AND vendor_id = $2")
-        .bind(item_id)
-        .bind(vendor_id)
-        .execute(&pool)
-        .await;
+    let result =
+        sqlx::query("UPDATE item SET status = 'archived' WHERE id = $1 AND vendor_id = $2")
+            .bind(item_id)
+            .bind(vendor_id)
+            .execute(&pool)
+            .await;
 
     match result {
         Ok(query) => {
@@ -444,12 +512,21 @@ pub async fn archive_item_by_id(
                 tracing::info!("Item {} archived successfully", item_id);
                 Ok(Json(true))
             } else {
-                tracing::warn!("Archive failed: Item {} not found under vendor {}", item_id, vendor_id);
+                tracing::warn!(
+                    "Archive failed: Item {} not found under vendor {}",
+                    item_id,
+                    vendor_id
+                );
                 Err(StatusCode::NOT_FOUND)
             }
         }
         Err(e) => {
-            tracing::error!("Database error archiving item {} under vendor {}: {:?}", item_id, vendor_id, e);
+            tracing::error!(
+                "Database error archiving item {} under vendor {}: {:?}",
+                item_id,
+                vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -462,7 +539,12 @@ pub async fn set_sku_by_id(
     Extension(claims): Extension<Claims>,
     Json(sku): Json<String>,
 ) -> Result<Json<Option<(bool, String, String)>>, StatusCode> {
-    tracing::info!("Updating SKU of item: {} under vendor: {} to: {}", item_id, vendor_id, sku);
+    tracing::info!(
+        "Updating SKU of item: {} under vendor: {} to: {}",
+        item_id,
+        vendor_id,
+        sku
+    );
     if claims.role != UserRole::Sys_Admin
         && (claims.role < UserRole::Operator || claims.vendor != vendor_id.to_string())
     {
@@ -482,12 +564,21 @@ pub async fn set_sku_by_id(
                 tracing::info!("Successfully set SKU to: {} for item: {}", sku, item_id);
                 Ok(Json(Some((true, item_id.to_string(), sku))))
             } else {
-                tracing::warn!("SKU update failed: item {} not found for vendor {}", item_id, vendor_id);
+                tracing::warn!(
+                    "SKU update failed: item {} not found for vendor {}",
+                    item_id,
+                    vendor_id
+                );
                 Err(StatusCode::NOT_FOUND)
             }
         }
         Err(e) => {
-            tracing::error!("Database error updating SKU of item {} under vendor {}: {:?}", item_id, vendor_id, e);
+            tracing::error!(
+                "Database error updating SKU of item {} under vendor {}: {:?}",
+                item_id,
+                vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -511,7 +602,11 @@ pub async fn get_skus_by_id(
     match result {
         Ok(vec) => Ok(Json(vec)),
         Err(e) => {
-            tracing::error!("Database error fetching SKUs for vendor {}: {:?}", vendor_id, e);
+            tracing::error!(
+                "Database error fetching SKUs for vendor {}: {:?}",
+                vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -594,7 +689,11 @@ pub async fn post_csv_items(
         .await;
 
         if let Err(e) = result {
-            tracing::error!("Database error during bulk item insert for SKU {}: {:?}", sku, e);
+            tracing::error!(
+                "Database error during bulk item insert for SKU {}: {:?}",
+                sku,
+                e
+            );
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     }
@@ -612,9 +711,12 @@ pub async fn get_variant_by_id(
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ItemVariant>>, StatusCode> {
-    tracing::info!("Fetching variants of item {} for vendor {}", item_id, vendor_id);
-    if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string()
-    {
+    tracing::info!(
+        "Fetching variants of item {} for vendor {}",
+        item_id,
+        vendor_id
+    );
+    if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string() {
         tracing::warn!("Unauthorized variant query by user: {}", claims.user);
         return Err(StatusCode::FORBIDDEN);
     }
@@ -635,7 +737,11 @@ pub async fn get_variant_by_id(
             Ok(Json(variants))
         }
         Err(e) => {
-            tracing::error!("Database error fetching variants of item {}: {:?}", item_id, e);
+            tracing::error!(
+                "Database error fetching variants of item {}: {:?}",
+                item_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -709,12 +815,15 @@ pub async fn get_cats_by_id(
 ) -> Result<Json<Vec<Category>>, StatusCode> {
     tracing::info!("Fetching categories for item: {}", item_id);
     if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string() {
-        tracing::warn!("Unauthorized categories fetch request by user: {}", claims.user);
+        tracing::warn!(
+            "Unauthorized categories fetch request by user: {}",
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
     let result = sqlx::query_scalar::<_, Option<Vec<Uuid>>>(
-        "SELECT category_ids FROM item WHERE vendor_id = $1 AND id = $2"
+        "SELECT category_ids FROM item WHERE vendor_id = $1 AND id = $2",
     )
     .bind(vendor_id)
     .bind(item_id)
@@ -726,7 +835,11 @@ pub async fn get_cats_by_id(
         Ok(None) => return Ok(Json(Vec::new())),
         Err(sqlx::Error::RowNotFound) => return Err(StatusCode::NOT_FOUND),
         Err(e) => {
-            tracing::error!("Database error checking categories of item {}: {:?}", item_id, e);
+            tracing::error!(
+                "Database error checking categories of item {}: {:?}",
+                item_id,
+                e
+            );
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -738,7 +851,11 @@ pub async fn get_cats_by_id(
                 cats.push(cat);
             }
             None => {
-                tracing::error!("Category ID {} listed on item {} could not be found", id, item_id);
+                tracing::error!(
+                    "Category ID {} listed on item {} could not be found",
+                    id,
+                    item_id
+                );
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
@@ -755,7 +872,10 @@ pub async fn get_cat_by_id(
 ) -> Result<Json<Category>, StatusCode> {
     tracing::info!("Fetching category details for: {}", category_id);
     if claims.role != UserRole::Sys_Admin && claims.vendor != vendor_id.to_string() {
-        tracing::warn!("Unauthorized read category request by user: {}", claims.user);
+        tracing::warn!(
+            "Unauthorized read category request by user: {}",
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -869,22 +989,32 @@ pub async fn get_stock_record_by_id(
     Path((vendor_id, item_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<StockRecord>, StatusCode> {
-    tracing::info!("Fetching stock record for item: {} under vendor: {}", item_id, vendor_id);
+    tracing::info!(
+        "Fetching stock record for item: {} under vendor: {}",
+        item_id,
+        vendor_id
+    );
     if vendor_id.to_string() != claims.vendor {
         tracing::warn!("Unauthorized stock record access by user: {}", claims.user);
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let result = sqlx::query_as::<_, StockRecord>("SELECT * FROM stockrecord WHERE vendor_id = $1 AND item_id = $2")
-        .bind(vendor_id)
-        .bind(item_id)
-        .fetch_one(&pool)
-        .await;
+    let result = sqlx::query_as::<_, StockRecord>(
+        "SELECT * FROM stockrecord WHERE vendor_id = $1 AND item_id = $2",
+    )
+    .bind(vendor_id)
+    .bind(item_id)
+    .fetch_one(&pool)
+    .await;
     match result {
         Ok(stockrecord) => Ok(Json(stockrecord)),
         Err(sqlx::Error::RowNotFound) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
-            tracing::error!("Database error fetching stock record for item {}: {:?}", item_id, e);
+            tracing::error!(
+                "Database error fetching stock record for item {}: {:?}",
+                item_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -897,7 +1027,11 @@ pub async fn update_stock_by_id(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<StockAdjustment>,
 ) -> Result<Json<bool>, StatusCode> {
-    tracing::info!("Updating stock record ID: {} with delta: {}", payload.stock_record_info, payload.quantity_delta);
+    tracing::info!(
+        "Updating stock record ID: {} with delta: {}",
+        payload.stock_record_info,
+        payload.quantity_delta
+    );
     match claims.role {
         UserRole::Read_Only_User => return Err(StatusCode::FORBIDDEN),
         UserRole::Sys_Admin => {}
@@ -914,7 +1048,7 @@ pub async fn update_stock_by_id(
          SET quantity_on_hand = quantity_on_hand + $1, 
              quantity_available = quantity_on_hand + $1 - quantity_reserved, 
              updated_at = NOW() 
-         WHERE id = $2 AND vendor_id = $3"
+         WHERE id = $2 AND vendor_id = $3",
     )
     .bind(payload.quantity_delta)
     .bind(payload.stock_record_info)
@@ -925,15 +1059,27 @@ pub async fn update_stock_by_id(
     match result {
         Ok(query) => {
             if query.rows_affected() != 0 {
-                tracing::info!("Stock record {} successfully adjusted by delta {}", payload.stock_record_info, payload.quantity_delta);
+                tracing::info!(
+                    "Stock record {} successfully adjusted by delta {}",
+                    payload.stock_record_info,
+                    payload.quantity_delta
+                );
                 Ok(Json(true))
             } else {
-                tracing::warn!("Stock record {} not found for vendor {}", payload.stock_record_info, vendor_id);
+                tracing::warn!(
+                    "Stock record {} not found for vendor {}",
+                    payload.stock_record_info,
+                    vendor_id
+                );
                 Err(StatusCode::NOT_FOUND)
             }
         }
         Err(e) => {
-            tracing::error!("Database error adjusting stock record {}: {:?}", payload.stock_record_info, e);
+            tracing::error!(
+                "Database error adjusting stock record {}: {:?}",
+                payload.stock_record_info,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -945,11 +1091,17 @@ pub async fn get_api_key(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<ApiPayload>,
 ) -> Result<Json<ApiKey>, StatusCode> {
-    tracing::info!("Request to generate new API key for vendor: {}", payload.vendor_id);
+    tracing::info!(
+        "Request to generate new API key for vendor: {}",
+        payload.vendor_id
+    );
     if claims.role != UserRole::Sys_Admin
         && (claims.role < UserRole::Admin || claims.vendor != payload.vendor_id.to_string())
     {
-        tracing::warn!("Unauthorized API key creation request by user: {}", claims.user);
+        tracing::warn!(
+            "Unauthorized API key creation request by user: {}",
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
     let id = Uuid::new_v4();
@@ -976,11 +1128,19 @@ pub async fn get_api_key(
 
     match result {
         Ok(api_key) => {
-            tracing::info!("Successfully created API key for vendor: {} name: {}", payload.vendor_id, payload.name);
+            tracing::info!(
+                "Successfully created API key for vendor: {} name: {}",
+                payload.vendor_id,
+                payload.name
+            );
             Ok(Json(api_key))
         }
         Err(e) => {
-            tracing::error!("Database error inserting api key for vendor {}: {:?}", payload.vendor_id, e);
+            tracing::error!(
+                "Database error inserting api key for vendor {}: {:?}",
+                payload.vendor_id,
+                e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -994,11 +1154,12 @@ pub async fn delete_api_key(
 ) -> Result<Json<bool>, StatusCode> {
     tracing::info!("Request to revoke API key ID: {}", id);
 
-    let key_vendor_id: Option<Uuid> = sqlx::query_scalar("SELECT vendor_id FROM apikey WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&pool)
-        .await
-        .unwrap_or(None);
+    let key_vendor_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT vendor_id FROM apikey WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&pool)
+            .await
+            .unwrap_or(None);
 
     let key_vendor_id = match key_vendor_id {
         Some(v) => v,
@@ -1008,16 +1169,17 @@ pub async fn delete_api_key(
     if claims.role != UserRole::Sys_Admin
         && (claims.role < UserRole::Admin || claims.vendor != key_vendor_id.to_string())
     {
-        tracing::warn!("Unauthorized API key deletion attempt by user: {}", claims.user);
+        tracing::warn!(
+            "Unauthorized API key deletion attempt by user: {}",
+            claims.user
+        );
         return Err(StatusCode::FORBIDDEN);
     }
-    let result = sqlx::query(
-        "UPDATE apikey SET status = $1, api_status = $1 WHERE id = $2"
-    )
-    .bind(ApiStatus::Revoked)
-    .bind(id)
-    .execute(&pool)
-    .await;
+    let result = sqlx::query("UPDATE apikey SET status = $1, api_status = $1 WHERE id = $2")
+        .bind(ApiStatus::Revoked)
+        .bind(id)
+        .execute(&pool)
+        .await;
 
     match result {
         Ok(query) => {

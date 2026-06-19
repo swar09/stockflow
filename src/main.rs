@@ -16,8 +16,8 @@ mod routes;
 mod types;
 use crate::middleware::auth_middleware;
 use crate::routes::{
-    add_new_item, archive_item_by_id, delete_api_key, delete_cat_by_id, delete_vendor,
-    get_api_key, get_cat_by_id, get_cats_by_id, get_item_by_id, get_items_by_id, get_skus_by_id,
+    add_new_item, archive_item_by_id, delete_api_key, delete_cat_by_id, delete_vendor, get_api_key,
+    get_cat_by_id, get_cats_by_id, get_item_by_id, get_items_by_id, get_skus_by_id,
     get_stock_record_by_id, get_variant_by_id, get_vendor_by_id, get_vendors, login_handler,
     post_csv_items, post_csv_vendors, put_cat_by_id, put_item_by_id, put_variant_by_id, put_vendor,
     set_sku_by_id, signup_handler, update_stock_by_id,
@@ -92,15 +92,32 @@ async fn main() {
             get(get_item_by_id).post(put_item_by_id),
         )
         .route("/vendor/{vendor_id}/sku", get(get_skus_by_id))
-        .route("/vendor/{vendor_id}/item/{item_id}/sku", post(set_sku_by_id))
-        .route("/vendor/{vendor_id}/item/{item_id}/archive", post(archive_item_by_id))
+        .route(
+            "/vendor/{vendor_id}/item/{item_id}/sku",
+            post(set_sku_by_id),
+        )
+        .route(
+            "/vendor/{vendor_id}/item/{item_id}/archive",
+            post(archive_item_by_id),
+        )
         .route("/vendor/{vendor_id}/item/new", post(add_new_item))
-        .route("/vendor/{vendor_id}/item/{item_id}/variant", get(get_variant_by_id))
-        .route("/vendor/{vendor_id}/item/{item_id}/variant/{variant_id}", put(put_variant_by_id))
-        .route("/vendor/{vendor_id}/item/{item_id}/category", get(get_cats_by_id))
+        .route(
+            "/vendor/{vendor_id}/item/{item_id}/variant",
+            get(get_variant_by_id),
+        )
+        .route(
+            "/vendor/{vendor_id}/item/{item_id}/variant/{variant_id}",
+            put(put_variant_by_id),
+        )
+        .route(
+            "/vendor/{vendor_id}/item/{item_id}/category",
+            get(get_cats_by_id),
+        )
         .route(
             "/vendor/{vendor_id}/item/{item_id}/category/{category_id}",
-            get(get_cat_by_id).put(put_cat_by_id).delete(delete_cat_by_id),
+            get(get_cat_by_id)
+                .put(put_cat_by_id)
+                .delete(delete_cat_by_id),
         )
         .route(
             "/vendor/{vendor_id}/item/{item_id}/stock",

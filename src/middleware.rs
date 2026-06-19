@@ -110,6 +110,7 @@ pub async fn check_vendor_id(vendor_id: String, claims_id: String) -> bool {
     vendor_id == claims_id
 }
 
+#[allow(dead_code)]
 pub async fn verify_api_key(id: Uuid, hash: String, State(pool): State<PgPool>) -> bool {
     let result: Option<ApiStatus> =
         sqlx::query_scalar("SELECT api_status FROM apikey WHERE id = $1 AND key_hash = $2")

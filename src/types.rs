@@ -106,6 +106,7 @@ pub struct ItemVariant {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct CsvRecordItemVariant {
     pub id: Uuid,
@@ -150,6 +151,7 @@ pub struct CategoryPayload {
     pub attributes: Option<HashMap<String, String>>,
 }
 
+#[allow(dead_code)]
 pub struct CsvRecordCatgeory {
     pub id: Uuid,
     pub vendor_id: Uuid,
@@ -206,6 +208,7 @@ pub struct ApiKey {
     pub created_at: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 #[derive(FromRow, Debug, Clone)]
 pub struct User {
     pub id: Uuid,
@@ -215,9 +218,11 @@ pub struct User {
     pub passkey: String,
 }
 
+#[allow(dead_code)]
 #[derive(Serialize)]
 pub struct VendorHandlerResponse {}
 
+#[allow(dead_code)]
 #[derive(Deserialize, Clone)]
 pub enum Role {
     Admin,
@@ -264,6 +269,7 @@ pub enum Itemstatus {
     Archived,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(PartialEq, Deserialize, Debug, Clone, sqlx::Type, Serialize, Eq, PartialOrd, Ord)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
 pub enum UserRole {
