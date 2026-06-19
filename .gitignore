@@ -3,8 +3,6 @@
 *.pem
 *.key
 *.p12
-project-showcase
-inventory_management_api.postman_collection.json
-frontend-skill.md
-api_schema.json
-tasks.txt
+seed.sh
+seed.sql
+inventory_api_prd.md
