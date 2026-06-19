@@ -3,6 +3,4 @@
 *.pem
 *.key
 *.p12
-seed.sh
-seed.sql
-inventory_api_prd.md
+
